@@ -1,0 +1,144 @@
+import { useState } from 'react';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { ShoppingCart, Heart, Search, User, Menu, X, Star, Trash2, Plus, Minus, Zap, Mail } from 'lucide-react';
+import { PRODUCTS, inr, off, art } from './data.js';
+import { useStore } from './store.jsx';
+
+export function Img({ src, alt, ...rest }) {
+  return <img src={src} alt={alt} loading="lazy" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = art('🏅', '#0B1B2B', '#2a3f55'); }} {...rest} />;
+}
+export const Rating = ({ value, reviews }) => (
+  <span className="rating" aria-label={`${value} out of 5`}><Star size={14} fill="currentColor" /> {value}{reviews != null && <small> ({reviews})</small>}</span>
+);
+export const SectionHeading = ({ title, to, link = 'View all' }) => (
+  <div className="sec-head"><h2>{title}</h2>{to && <Link to={to} className="link">{link}</Link>}</div>
+);
+export const Breadcrumbs = ({ items }) => (
+  <nav className="crumbs" aria-label="Breadcrumb">{items.map((it, i) => (it.to ? <span key={i}><Link to={it.to}>{it.label}</Link> / </span> : <strong key={i}>{it.label}</strong>))}</nav>
+);
+
+export function ProductCard({ p }) {
+  const { toggleWish, wish, addToCart } = useStore();
+  const liked = wish.includes(p.id);
+  const d = off(p);
+  return (
+    <article className="card">
+      <div className="card-img">
+        <Link to={`/product/${p.id}`}><Img src={p.images[0]} alt={p.name} /></Link>
+        {p.badge && <span className="badge">{p.badge}</span>}
+        <button className={'heart' + (liked ? ' on' : '')} onClick={() => toggleWish(p.id)} aria-label={liked ? 'Remove from wishlist' : 'Add to wishlist'}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /></button>
+      </div>
+      <div className="card-body">
+        <small className="muted">{p.category}</small>
+        <h3><Link to={`/product/${p.id}`}>{p.name}</Link></h3>
+        <Rating value={p.rating} reviews={p.reviews} />
+        <div className="price"><b>{inr(p.price)}</b>{d > 0 && <><s>{inr(p.orig)}</s><em>{d}% off</em></>}</div>
+        <button className="btn btn-dark btn-sm" disabled={!p.stock} onClick={() => addToCart(p.id, p.sizes ? p.sizes[0] : null)}>{p.stock ? 'Quick add' : 'Out of stock'}</button>
+      </div>
+    </article>
+  );
+}
+export const ProductGrid = ({ items }) => <div className="grid">{items.map((p) => <ProductCard key={p.id} p={p} />)}</div>;
+
+const LINKS = [['/', 'Home'], ['/shop', 'Shop'], ['/category/football', 'Sports'], ['/shop?brand=Nike', 'Brands'], ['/shop?sort=newest', 'New Arrivals'], ['/shop?sale=1', 'Sale']];
+export function Navbar() {
+  const { count, wish, setOpen } = useStore();
+  const [menu, setMenu] = useState(false);
+  const [q, setQ] = useState('');
+  const [find, setFind] = useState(false);
+  const nav = useNavigate();
+  const go = (e) => { e.preventDefault(); nav(`/shop?q=${encodeURIComponent(q.trim())}`); setFind(false); setMenu(false); };
+  return (
+    <>
+      <div className="announce">FREE SHIPPING ON ORDERS ABOVE ₹1,999 &nbsp;|&nbsp; Season sale: up to 30% off</div>
+      <header className="nav">
+        <div className="wrap nav-in">
+          <button className="icon only-m" aria-label="Open menu" onClick={() => setMenu(true)}><Menu /></button>
+          <Link to="/" className="logo"><Zap size={22} fill="#C8F31D" stroke="#0B1B2B" />ATHLETIX</Link>
+          <nav className="links" aria-label="Main">{LINKS.map(([to, l]) => <NavLink key={l} to={to} end={to === '/'}>{l}</NavLink>)}</nav>
+          <div className="actions">
+            {find ? (
+              <form onSubmit={go} className="sbar" role="search"><input autoFocus aria-label="Search products" placeholder="Search products, brands…" value={q} onChange={(e) => setQ(e.target.value)} />{q && <button type="button" className="icon" aria-label="Clear search" onClick={() => setQ('')}><X size={16} /></button>}<button className="icon" aria-label="Search"><Search size={18} /></button></form>
+            ) : <button className="icon" aria-label="Open search" onClick={() => setFind(true)}><Search /></button>}
+            <Link to="/contact" className="icon hide-m" aria-label="Account"><User /></Link>
+            <Link to="/wishlist" className="icon" aria-label="Wishlist"><Heart />{wish.length > 0 && <i className="count">{wish.length}</i>}</Link>
+            <button className="icon" aria-label="Open cart" onClick={() => setOpen(true)}><ShoppingCart />{count > 0 && <i className="count">{count}</i>}</button>
+          </div>
+        </div>
+      </header>
+      {menu && <div className="overlay" onClick={() => setMenu(false)} />}
+      <aside className={'drawer left' + (menu ? ' open' : '')} aria-hidden={!menu}>
+        <div className="drawer-head"><b>Menu</b><button className="icon" aria-label="Close menu" onClick={() => setMenu(false)}><X /></button></div>
+        <form onSubmit={go} className="msearch"><input aria-label="Search" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} /></form>
+        {LINKS.map(([to, l]) => <Link key={l} to={to} className="mlink" onClick={() => setMenu(false)}>{l}</Link>)}
+      </aside>
+    </>
+  );
+}
+
+export function CartDrawer() {
+  const { open, setOpen, lines, subtotal, shipping, total, setQty, remove } = useStore();
+  const nav = useNavigate();
+  return (
+    <>
+      {open && <div className="overlay" onClick={() => setOpen(false)} />}
+      <aside className={'drawer right' + (open ? ' open' : '')} aria-label="Shopping cart">
+        <div className="drawer-head"><b>Your cart ({lines.length})</b><button className="icon" aria-label="Close cart" onClick={() => setOpen(false)}><X /></button></div>
+        {lines.length === 0 ? (
+          <div className="empty"><ShoppingCart size={40} /><p>Your cart is empty.</p><button className="btn btn-lime" onClick={() => { setOpen(false); nav('/shop'); }}>Continue shopping</button></div>
+        ) : (
+          <>
+            <div className="drawer-body">{lines.map((l) => <CartItem key={l.id + '-' + l.size} l={l} setQty={setQty} remove={remove} />)}</div>
+            <div className="drawer-foot">
+              <div className="row"><span>Subtotal</span><b>{inr(subtotal)}</b></div>
+              <div className="row"><span>Shipping</span><b>{shipping ? inr(shipping) : 'Free'}</b></div>
+              <div className="row tot"><span>Total</span><b>{inr(total)}</b></div>
+              <button className="btn btn-lime" onClick={() => { setOpen(false); nav('/cart'); }}>Proceed to checkout</button>
+              <button className="btn btn-ghost" onClick={() => setOpen(false)}>Continue shopping</button>
+              <small className="muted">Checkout is a frontend demo. No real payments are processed.</small>
+            </div>
+          </>
+        )}
+      </aside>
+    </>
+  );
+}
+export function CartItem({ l, setQty, remove }) {
+  return (
+    <div className="citem">
+      <Img src={l.p.images[0]} alt={l.p.name} />
+      <div>
+        <Link to={`/product/${l.p.id}`}><b>{l.p.name}</b></Link>
+        {l.size && <small className="muted">Size: {l.size}</small>}
+        <span>{inr(l.p.price)}</span>
+        <div className="qty"><button aria-label="Decrease quantity" onClick={() => setQty(l.id, l.size, l.qty - 1)}><Minus size={14} /></button><span>{l.qty}</span><button aria-label="Increase quantity" onClick={() => setQty(l.id, l.size, l.qty + 1)}><Plus size={14} /></button></div>
+      </div>
+      <button className="icon" aria-label={`Remove ${l.p.name}`} onClick={() => remove(l.id, l.size)}><Trash2 size={18} /></button>
+    </div>
+  );
+}
+
+export function Footer() {
+  return (
+    <footer className="footer">
+      <div className="wrap fgrid">
+        <div><div className="logo light"><Zap size={22} fill="#C8F31D" stroke="#0B1B2B" />ATHLETIX</div><p>Premium sports equipment for every athlete, every goal and every game.</p><p className="soc">Instagram · YouTube · X · Facebook</p></div>
+        <div><h4>Shop</h4><Link to="/category/football">Football</Link><Link to="/category/cricket">Cricket</Link><Link to="/category/running">Running</Link><Link to="/category/gym-fitness">Gym & Fitness</Link></div>
+        <div><h4>Support</h4><Link to="/about">About Us</Link><Link to="/contact">Contact</Link><Link to="/contact">FAQs</Link><Link to="/contact">Shipping</Link><Link to="/contact">Returns</Link></div>
+        <div><h4>We accept</h4><p className="pay"><span>UPI</span><span>VISA</span><span>MC</span><span>COD</span></p></div>
+      </div>
+      <div className="wrap copy">© {new Date().getFullYear()} ATHLETIX. Demo store; no real orders or payments.</div>
+    </footer>
+  );
+}
+export function Newsletter() {
+  const [e, setE] = useState(''); const [msg, setMsg] = useState(null);
+  const submit = (ev) => { ev.preventDefault(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) return setMsg({ bad: true, t: 'Enter a valid email address.' }); setMsg({ t: 'You are in! Check your inbox for 10% off.' }); setE(''); };
+  return (
+    <section className="news"><div className="wrap"><Mail size={28} /><h2>Get 10% off your first order</h2>
+      <form onSubmit={submit} noValidate><label className="sr" htmlFor="nl">Email</label><input id="nl" type="email" placeholder="you@example.com" value={e} onChange={(x) => setE(x.target.value)} /><button className="btn btn-dark">Subscribe</button></form>
+      {msg && <p role="status" className={msg.bad ? 'err' : 'ok'}>{msg.t}</p>}</div></section>
+  );
+}
+export const Toast = () => { const { toast } = useStore(); return toast ? <div className="toast" role="status">{toast}</div> : null; };
+export const related = (p) => PRODUCTS.filter((x) => x.category === p.category && x.id !== p.id).slice(0, 4);
