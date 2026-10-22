@@ -8,8 +8,8 @@ export const CATEGORIES = [
   { slug: 'cycling', name: 'Cycling', emoji: '🚴', a: '#0b4f4a', b: '#1abc9c' },
   { slug: 'swimming', name: 'Swimming', emoji: '🏊', a: '#0a3d6b', b: '#3498db' },
 ];
-export const catBySlug = (s) => CATEGORIES.find((c) => c.slug === s);
-export const catByName = (n) => CATEGORIES.find((c) => c.name === n);
+export const catBySlug = (s) => CATEGORIES.find((c) => c.slug === s || (s && c.slug === s.replace(/^demo-/, '')) || (s && c.name.toLowerCase() === s.toLowerCase()));
+export const catByName = (n) => CATEGORIES.find((c) => n && c.name.toLowerCase() === n.toLowerCase());
 
 // Self-contained generated artwork (no external image links to break). Replace with real photos via product.images.
 export const art = (emoji, a, b, rot = 0) =>

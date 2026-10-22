@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Heart, Search, User, Menu, X, Star, Trash2, Plus, Minus, Zap, Mail } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { ShoppingCart, Heart, Search, User, Menu, X, Star, Trash2, Plus, Minus, Zap, Mail, ChevronDown, ChevronRight, ArrowRight } from 'lucide-react';
 import { PRODUCTS, inr, off, art } from './data.js';
 import { useStore } from './store.jsx';
 
@@ -40,13 +40,40 @@ export function ProductCard({ p }) {
 }
 export const ProductGrid = ({ items }) => <div className="grid">{items.map((p) => <ProductCard key={p.id} p={p} />)}</div>;
 
-const LINKS = [['/', 'Home'], ['/shop', 'Shop'], ['/category/football', 'Sports'], ['/shop?brand=Nike', 'Brands'], ['/shop?sort=newest', 'New Arrivals'], ['/shop?sale=1', 'Sale']];
 export function Navbar() {
-  const { count, wish, setOpen } = useStore();
+  const { count, wish, setOpen, categories } = useStore();
   const [menu, setMenu] = useState(false);
   const [q, setQ] = useState('');
   const [find, setFind] = useState(false);
+  const [sportsOpen, setSportsOpen] = useState(false);
+  const [mSportsOpen, setMSportsOpen] = useState(true);
+  const sportsRef = useRef(null);
   const nav = useNavigate();
+  const location = useLocation();
+  const isSportsActive = location.pathname.startsWith('/category');
+
+  useEffect(() => {
+    setSportsOpen(false);
+    setMenu(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (sportsRef.current && !sportsRef.current.contains(e.target)) {
+        setSportsOpen(false);
+      }
+    }
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') setSportsOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   const go = (e) => { e.preventDefault(); nav(`/shop?q=${encodeURIComponent(q.trim())}`); setFind(false); setMenu(false); };
   return (
     <>
@@ -55,7 +82,79 @@ export function Navbar() {
         <div className="wrap nav-in">
           <button className="icon only-m" aria-label="Open menu" onClick={() => setMenu(true)}><Menu /></button>
           <Link to="/" className="logo"><Zap size={22} fill="#C8F31D" stroke="#0B1B2B" />ATHLETIX</Link>
-          <nav className="links" aria-label="Main">{LINKS.map(([to, l]) => <NavLink key={l} to={to} end={to === '/'}>{l}</NavLink>)}</nav>
+          <nav className="links" aria-label="Main">
+            <NavLink to="/" end>Home</NavLink>
+            <NavLink to="/shop" end>Shop</NavLink>
+
+            <div
+              ref={sportsRef}
+              className="nav-dropdown"
+              onMouseEnter={() => setSportsOpen(true)}
+              onMouseLeave={() => setSportsOpen(false)}
+            >
+              <button
+                type="button"
+                className={'nav-link-btn' + (isSportsActive ? ' active' : '')}
+                onClick={() => setSportsOpen((o) => !o)}
+                aria-expanded={sportsOpen}
+                aria-haspopup="true"
+              >
+                Sports <ChevronDown size={14} className={'chevron' + (sportsOpen ? ' open' : '')} />
+              </button>
+
+              <div className={'sports-menu' + (sportsOpen ? ' open' : '')} role="menu">
+                <div className="sports-menu-header">
+                  <span>Sports Categories</span>
+                  <Link to="/shop" onClick={() => setSportsOpen(false)}>All Sports <ArrowRight size={13} /></Link>
+                </div>
+
+                <div className="sports-grid">
+                  {categories.map((c) => (
+                    <Link
+                      key={c.slug}
+                      to={`/category/${c.slug}`}
+                      className="sport-item"
+                      onClick={() => setSportsOpen(false)}
+                      role="menuitem"
+                    >
+                      {c.image_url ? (
+                        <img
+                          src={c.image_url}
+                          alt={c.name}
+                          className="sport-thumb"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = art(c.emoji || '⚽', c.a || '#0B1B2B', c.b || '#173a4f');
+                          }}
+                        />
+                      ) : (
+                        <img
+                          src={art(c.emoji || '⚽', c.a || '#0B1B2B', c.b || '#173a4f')}
+                          alt={c.name}
+                          className="sport-thumb"
+                        />
+                      )}
+                      <div className="sport-info">
+                        <span className="sport-name">{c.name}</span>
+                        {c.description && <span className="sport-desc">{c.description}</span>}
+                      </div>
+                      <ChevronRight size={15} className="sport-arrow" />
+                    </Link>
+                  ))}
+                </div>
+
+                <div className="sports-menu-foot">
+                  <Link to="/shop" onClick={() => setSportsOpen(false)}>
+                    Explore full sports equipment catalog <ArrowRight size={14} />
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <NavLink to="/shop?brand=Nike">Brands</NavLink>
+            <NavLink to="/shop?sort=newest">New Arrivals</NavLink>
+            <NavLink to="/shop?sale=1">Sale</NavLink>
+          </nav>
           <div className="actions">
             {find ? (
               <form onSubmit={go} className="sbar" role="search"><input autoFocus aria-label="Search products" placeholder="Search products, brands…" value={q} onChange={(e) => setQ(e.target.value)} />{q && <button type="button" className="icon" aria-label="Clear search" onClick={() => setQ('')}><X size={16} /></button>}<button className="icon" aria-label="Search"><Search size={18} /></button></form>
@@ -68,9 +167,62 @@ export function Navbar() {
       </header>
       {menu && <div className="overlay" onClick={() => setMenu(false)} />}
       <aside className={'drawer left' + (menu ? ' open' : '')} aria-hidden={!menu}>
-        <div className="drawer-head"><b>Menu</b><button className="icon" aria-label="Close menu" onClick={() => setMenu(false)}><X /></button></div>
+        <div className="drawer-head"><b className="drawer-title">Menu</b><button className="icon" aria-label="Close menu" onClick={() => setMenu(false)}><X /></button></div>
         <form onSubmit={go} className="msearch"><input aria-label="Search" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} /></form>
-        {LINKS.map(([to, l]) => <Link key={l} to={to} className="mlink" onClick={() => setMenu(false)}>{l}</Link>)}
+        <Link to="/" className="mlink" onClick={() => setMenu(false)}>Home</Link>
+        <Link to="/shop" className="mlink" onClick={() => setMenu(false)}>Shop</Link>
+        
+        <div className="m-sports-group">
+          <button
+            type="button"
+            className="m-sports-toggle"
+            onClick={() => setMSportsOpen((o) => !o)}
+            aria-expanded={mSportsOpen}
+          >
+            <span>Sports</span>
+            <ChevronDown size={22} className={'chevron' + (mSportsOpen ? ' open' : '')} />
+          </button>
+          {mSportsOpen && (
+            <div className="m-sports-list">
+              {categories.map((c) => (
+                <Link
+                  key={c.slug}
+                  to={`/category/${c.slug}`}
+                  className="m-sport-item"
+                  onClick={() => { setMenu(false); }}
+                >
+                  {c.image_url ? (
+                    <img
+                      src={c.image_url}
+                      alt={c.name}
+                      className="m-sport-thumb"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = art(c.emoji || '⚽', c.a || '#0B1B2B', c.b || '#173a4f');
+                      }}
+                    />
+                  ) : (
+                    <img
+                      src={art(c.emoji || '⚽', c.a || '#0B1B2B', c.b || '#173a4f')}
+                      alt={c.name}
+                      className="m-sport-thumb"
+                    />
+                  )}
+                  <span className="m-sport-name">{c.name}</span>
+                  <ChevronRight size={16} className="m-sport-arrow" />
+                </Link>
+              ))}
+              <Link to="/shop" className="m-sport-all" onClick={() => { setMenu(false); }}>
+                <span>All Sports Equipment</span>
+                <ArrowRight size={14} />
+              </Link>
+            </div>
+          )}
+        </div>
+
+        <Link to="/shop?brand=Nike" className="mlink" onClick={() => setMenu(false)}>Brands</Link>
+        <Link to="/shop?sort=newest" className="mlink" onClick={() => setMenu(false)}>New Arrivals</Link>
+        <Link to="/shop?sale=1" className="mlink" onClick={() => setMenu(false)}>Sale</Link>
       </aside>
     </>
   );

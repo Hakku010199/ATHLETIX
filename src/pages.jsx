@@ -7,6 +7,7 @@ import { Img, Rating, SectionHeading, Breadcrumbs, ProductGrid, Newsletter, Cart
 
 export function Home() {
   const nav = useNavigate();
+  const { categories } = useStore();
   return (
     <>
       <section className="hero"><div className="wrap hero-in">
@@ -17,7 +18,22 @@ export function Home() {
         <div className="collage" aria-hidden="true">{[0, 1, 2].map((i) => <img key={i} src={PRODUCTS[[1, 2, 5][i]].images[0]} alt="" />)}</div>
       </div></section>
       <section className="wrap sec" id="sports"><SectionHeading title="Shop by sport" />
-        <div className="cats">{CATEGORIES.map((c) => <Link key={c.slug} to={`/category/${c.slug}`} className="cat"><img src={art(c.emoji, c.a, c.b)} alt="" /><span>{c.name}</span></Link>)}</div></section>
+        <div className="cats">
+          {categories.map((c) => (
+            <Link key={c.slug} to={`/category/${c.slug}`} className="cat">
+              <img
+                src={c.image_url || art(c.emoji, c.a, c.b)}
+                alt={c.name}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = art(c.emoji || '⚽', c.a || '#0B1B2B', c.b || '#173a4f');
+                }}
+              />
+              <span>{c.name}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
       <section className="wrap sec"><SectionHeading title="Featured products" to="/shop" /><ProductGrid items={PRODUCTS.slice(0, 8)} /></section>
       <section className="promo"><div className="wrap"><h2>YOUR NEXT PERSONAL BEST STARTS HERE.</h2><p>Weights, bands, mats and more for every training plan.</p><Link to="/category/gym-fitness" className="btn btn-lime">Shop training gear</Link></div></section>
       <section className="wrap sec"><SectionHeading title="New arrivals" to="/shop?sort=newest" /><ProductGrid items={PRODUCTS.filter((p) => p.isNew).slice(0, 4)} /></section>
@@ -31,15 +47,16 @@ export function Home() {
 export function Shop() {
   const { slug } = useParams();
   const nav = useNavigate();
+  const { categories, findCategory } = useStore();
   const [sp, setSp] = useSearchParams();
   const [shown, setShown] = useState(8);
   const [drawer, setDrawer] = useState(false);
   const q = sp.get('q') || '', brand = sp.get('brand') || '', sort = sp.get('sort') || 'featured';
   const max = +(sp.get('max') || MAXP), rating = +(sp.get('rating') || 0), stock = sp.get('stock') === '1', sale = sp.get('sale') === '1';
-  const cat = slug ? catBySlug(slug) : null;
+  const cat = slug ? findCategory(slug) : null;
   const set = (k, v) => { const n = new URLSearchParams(sp); v === '' || v == null || v === false ? n.delete(k) : n.set(k, v); setSp(n); setShown(8); };
   const items = useMemo(() => {
-    let r = PRODUCTS.filter((p) => (!cat || p.category === cat.name) && (!brand || p.brand === brand) && p.price <= max && p.rating >= rating && (!stock || p.stock > 0) && (!sale || off(p) > 0)
+    let r = PRODUCTS.filter((p) => (!cat || p.category.toLowerCase() === cat.name.toLowerCase()) && (!brand || p.brand === brand) && p.price <= max && p.rating >= rating && (!stock || p.stock > 0) && (!sale || off(p) > 0)
       && (!q || (p.name + p.category + p.brand).toLowerCase().includes(q.toLowerCase())));
     const s = { 'price-asc': (a, b) => a.price - b.price, 'price-desc': (a, b) => b.price - a.price, rating: (a, b) => b.rating - a.rating, newest: (a, b) => b.id - a.id }[sort];
     return s ? [...r].sort(s) : r;
@@ -49,7 +66,16 @@ export function Shop() {
     <div className="filters">
       <h4>Category</h4>
       <label><input type="radio" name="c" checked={!cat} onChange={() => nav('/shop')} /> All</label>
-      {CATEGORIES.map((c) => <label key={c.slug}><input type="radio" name="c" checked={cat?.slug === c.slug} onChange={() => nav(`/category/${c.slug}`)} /> {c.name}</label>)}
+      {categories.map((c) => (
+        <label key={c.slug}>
+          <input
+            type="radio"
+            name="c"
+            checked={cat?.slug === c.slug || (cat && cat.name.toLowerCase() === c.name.toLowerCase())}
+            onChange={() => nav(`/category/${c.slug}`)}
+          /> {c.name}
+        </label>
+      ))}
       <h4>Brand</h4>
       <select aria-label="Brand" value={brand} onChange={(e) => set('brand', e.target.value)}><option value="">All brands</option>{BRANDS.map((b) => <option key={b}>{b}</option>)}</select>
       <h4>Max price: {inr(max)}</h4>
