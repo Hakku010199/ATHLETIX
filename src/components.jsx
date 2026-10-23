@@ -293,4 +293,7 @@ export function Newsletter() {
   );
 }
 export const Toast = () => { const { toast } = useStore(); return toast ? <div className="toast" role="status">{toast}</div> : null; };
-export const related = (p) => PRODUCTS.filter((x) => x.category === p.category && x.id !== p.id).slice(0, 4);
+export const related = (p, allProducts) =>
+  (allProducts && allProducts.length > 0 ? allProducts : PRODUCTS)
+    .filter((x) => x.category === p.category && String(x.id) !== String(p.id))
+    .slice(0, 4);

@@ -7,7 +7,7 @@ import { Img, Rating, SectionHeading, Breadcrumbs, ProductGrid, Newsletter, Cart
 
 export function Home() {
   const nav = useNavigate();
-  const { categories } = useStore();
+  const { categories, products } = useStore();
   return (
     <>
       <section className="hero"><div className="wrap hero-in">
@@ -15,7 +15,12 @@ export function Home() {
           <h1>GEAR UP.<br />PLAY HARDER.</h1>
           <p>Premium sports equipment built for every athlete, every goal, and every game.</p>
           <div className="btns"><button className="btn btn-lime" onClick={() => nav('/shop')}>Shop now</button><button className="btn btn-ghost-l" onClick={() => document.getElementById('sports').scrollIntoView({ behavior: 'smooth' })}>Explore collections</button></div></div>
-        <div className="collage" aria-hidden="true">{[0, 1, 2].map((i) => <img key={i} src={PRODUCTS[[1, 2, 5][i]].images[0]} alt="" />)}</div>
+        <div className="collage" aria-hidden="true">
+          {[0, 1, 2].map((i) => {
+            const it = products[i] || products[0];
+            return it?.images?.[0] ? <img key={i} src={it.images[0]} alt="" /> : null;
+          })}
+        </div>
       </div></section>
       <section className="wrap sec" id="sports"><SectionHeading title="Shop by sport" />
         <div className="cats">
@@ -34,10 +39,10 @@ export function Home() {
           ))}
         </div>
       </section>
-      <section className="wrap sec"><SectionHeading title="Featured products" to="/shop" /><ProductGrid items={PRODUCTS.slice(0, 8)} /></section>
-      <section className="promo"><div className="wrap"><h2>YOUR NEXT PERSONAL BEST STARTS HERE.</h2><p>Weights, bands, mats and more for every training plan.</p><Link to="/category/gym-fitness" className="btn btn-lime">Shop training gear</Link></div></section>
-      <section className="wrap sec"><SectionHeading title="New arrivals" to="/shop?sort=newest" /><ProductGrid items={PRODUCTS.filter((p) => p.isNew).slice(0, 4)} /></section>
-      <section className="wrap sec"><SectionHeading title="Best sellers" to="/shop?sort=rating" /><ProductGrid items={PRODUCTS.filter((p) => p.best).slice(0, 4)} /></section>
+      <section className="wrap sec"><SectionHeading title="Featured products" to="/shop" /><ProductGrid items={products.slice(0, 8)} /></section>
+      <section className="promo"><div className="wrap"><h2>YOUR NEXT PERSONAL BEST STARTS HERE.</h2><p>Weights, bands, mats and more for every training plan.</p><Link to="/category/demo-football" className="btn btn-lime">Shop football gear</Link></div></section>
+      <section className="wrap sec"><SectionHeading title="New arrivals" to="/shop?sort=newest" /><ProductGrid items={(products.filter((p) => p.isNew).length > 0 ? products.filter((p) => p.isNew) : products).slice(0, 4)} /></section>
+      <section className="wrap sec"><SectionHeading title="Best sellers" to="/shop?sort=rating" /><ProductGrid items={(products.filter((p) => p.best).length > 0 ? products.filter((p) => p.best) : products).slice(0, 4)} /></section>
       <section className="wrap sec benefits">{[[BadgeCheck, 'Authentic sports gear'], [ShieldCheck, 'Secure payments'], [RotateCcw, 'Easy returns'], [Truck, 'Fast delivery across India']].map(([I, t]) => <div key={t}><I size={30} /><b>{t}</b></div>)}</section>
       <Newsletter />
     </>
@@ -47,20 +52,50 @@ export function Home() {
 export function Shop() {
   const { slug } = useParams();
   const nav = useNavigate();
-  const { categories, findCategory } = useStore();
+  const { categories, findCategory, products } = useStore();
   const [sp, setSp] = useSearchParams();
   const [shown, setShown] = useState(8);
   const [drawer, setDrawer] = useState(false);
   const q = sp.get('q') || '', brand = sp.get('brand') || '', sort = sp.get('sort') || 'featured';
-  const max = +(sp.get('max') || MAXP), rating = +(sp.get('rating') || 0), stock = sp.get('stock') === '1', sale = sp.get('sale') === '1';
+  
+  const maxLimit = useMemo(() => (products.length > 0 ? Math.max(...products.map((p) => p.price)) : 10000), [products]);
+  const max = +(sp.get('max') || maxLimit);
+  const rating = +(sp.get('rating') || 0), stock = sp.get('stock') === '1', sale = sp.get('sale') === '1';
   const cat = slug ? findCategory(slug) : null;
   const set = (k, v) => { const n = new URLSearchParams(sp); v === '' || v == null || v === false ? n.delete(k) : n.set(k, v); setSp(n); setShown(8); };
+  
+  const brands = useMemo(() => [...new Set(products.map((p) => p.brand).filter(Boolean))].sort(), [products]);
+
   const items = useMemo(() => {
-    let r = PRODUCTS.filter((p) => (!cat || p.category.toLowerCase() === cat.name.toLowerCase()) && (!brand || p.brand === brand) && p.price <= max && p.rating >= rating && (!stock || p.stock > 0) && (!sale || off(p) > 0)
-      && (!q || (p.name + p.category + p.brand).toLowerCase().includes(q.toLowerCase())));
-    const s = { 'price-asc': (a, b) => a.price - b.price, 'price-desc': (a, b) => b.price - a.price, rating: (a, b) => b.rating - a.rating, newest: (a, b) => b.id - a.id }[sort];
+    let r = products.filter((p) => {
+      if (cat) {
+        const matchName = p.category && cat.name && p.category.toLowerCase() === cat.name.toLowerCase();
+        const matchSlug = p.categorySlug && cat.slug && p.categorySlug.toLowerCase() === cat.slug.toLowerCase();
+        const matchId = p.categoryId && cat.id && p.categoryId === cat.id;
+        if (!matchName && !matchSlug && !matchId) return false;
+      }
+      if (brand && p.brand?.toLowerCase() !== brand.toLowerCase()) return false;
+      if (p.price > max) return false;
+      if (p.rating < rating) return false;
+      if (stock && (!p.stock || p.stock <= 0)) return false;
+      if (sale && !(off(p) > 0)) return false;
+      if (q) {
+        const query = q.toLowerCase();
+        const text = `${p.name} ${p.category} ${p.brand}`.toLowerCase();
+        if (!text.includes(query)) return false;
+      }
+      return true;
+    });
+
+    const s = {
+      'price-asc': (a, b) => a.price - b.price,
+      'price-desc': (a, b) => b.price - a.price,
+      rating: (a, b) => b.rating - a.rating,
+      newest: (a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0),
+    }[sort];
     return s ? [...r].sort(s) : r;
-  }, [cat, brand, max, rating, stock, sale, q, sort]);
+  }, [products, cat, brand, max, rating, stock, sale, q, sort]);
+
   const clear = () => { setSp({}); setShown(8); if (slug) nav('/shop'); };
   const Filters = (
     <div className="filters">
@@ -77,11 +112,18 @@ export function Shop() {
         </label>
       ))}
       <h4>Brand</h4>
-      <select aria-label="Brand" value={brand} onChange={(e) => set('brand', e.target.value)}><option value="">All brands</option>{BRANDS.map((b) => <option key={b}>{b}</option>)}</select>
+      <select aria-label="Brand" value={brand} onChange={(e) => set('brand', e.target.value)}>
+        <option value="">All brands</option>
+        {brands.map((b) => <option key={b}>{b}</option>)}
+      </select>
       <h4>Max price: {inr(max)}</h4>
-      <input type="range" aria-label="Max price" min="500" max={MAXP} step="100" value={max} onChange={(e) => set('max', e.target.value)} />
+      <input type="range" aria-label="Max price" min="500" max={Math.max(5000, maxLimit)} step="100" value={max} onChange={(e) => set('max', e.target.value)} />
       <h4>Rating</h4>
-      <select aria-label="Minimum rating" value={rating} onChange={(e) => set('rating', e.target.value === '0' ? '' : e.target.value)}><option value="0">Any</option><option value="4">4★ & up</option><option value="4.5">4.5★ & up</option></select>
+      <select aria-label="Minimum rating" value={rating} onChange={(e) => set('rating', e.target.value === '0' ? '' : e.target.value)}>
+        <option value="0">Any</option>
+        <option value="4">4★ & up</option>
+        <option value="4.5">4.5★ & up</option>
+      </select>
       <h4>Availability</h4>
       <label><input type="checkbox" checked={stock} onChange={(e) => set('stock', e.target.checked ? '1' : '')} /> In stock only</label>
       <label><input type="checkbox" checked={sale} onChange={(e) => set('sale', e.target.checked ? '1' : '')} /> On sale</label>
@@ -113,13 +155,13 @@ export function Shop() {
 
 export function ProductDetails() {
   const { id } = useParams();
-  const p = PRODUCTS.find((x) => x.id === +id);
-  const { addToCart, toggleWish, wish } = useStore();
+  const { products, addToCart, toggleWish, wish } = useStore();
+  const p = products.find((x) => String(x.id) === String(id));
   const nav = useNavigate();
   const [img, setImg] = useState(0); const [size, setSize] = useState(null); const [qty, setQty] = useState(1);
   const [pin, setPin] = useState(''); const [pinMsg, setPinMsg] = useState(null); const [needSize, setNeedSize] = useState(false);
   if (!p) return <NotFound />;
-  const d = off(p); const liked = wish.includes(p.id);
+  const d = off(p); const liked = wish.some((item) => String(item) === String(p.id));
   const add = () => { if (p.sizes && !size) { setNeedSize(true); return false; } addToCart(p.id, size, qty); return true; };
   const check = () => setPinMsg(/^[1-9]\d{5}$/.test(pin) ? { t: `Delivery to ${pin} in 3-5 days.` } : { bad: true, t: 'Enter a valid 6-digit PIN code.' });
   return (
@@ -140,14 +182,14 @@ export function ProductDetails() {
           <p className="muted">Free shipping above ₹1,999. 7-day easy returns on unused items.</p>
         </div>
       </div>
-      <SectionHeading title="Related products" /><ProductGrid items={related(p)} />
+      <SectionHeading title="Related products" /><ProductGrid items={related(p, products)} />
     </div>
   );
 }
 
 export function Wishlist() {
-  const { wish } = useStore();
-  const items = PRODUCTS.filter((p) => wish.includes(p.id));
+  const { wish, products } = useStore();
+  const items = products.filter((p) => wish.some((item) => String(item) === String(p.id)));
   return <div className="wrap sec"><h1 className="title">Wishlist</h1>{items.length ? <ProductGrid items={items} /> : <div className="empty"><Heart size={40} /><p>Nothing saved yet.</p><Link to="/shop" className="btn btn-lime">Browse products</Link></div>}</div>;
 }
 export function CartPage() {
